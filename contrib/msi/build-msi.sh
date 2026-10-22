@@ -36,9 +36,9 @@ if not exist %ALLUSERSPROFILE%\\Yggdrasil\\yggdrasil.conf (
 EOF
 
 # Work out metadata for the package info
-PKGNAME="yggdrasil-alpha2-httpproxy"
-PKGVERSION="0.5.12.1"
-PKGVERSIONMS="0.5.12.1"
+PKGNAME=$(sh contrib/semver/name.sh)
+PKGVERSION=$(sh contrib/semver/version.sh)
+PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
 ([ "${PKGARCH}" == "x64" ] || [ "${PKGARCH}" == "arm64" ]) && \
   PKGGUID="77757838-1a23-40a5-a720-c3b43e0260cc" PKGINSTFOLDER="ProgramFiles64Folder" || \
   PKGGUID="54a3294e-a441-4322-aefb-3bb40dd022bb" PKGINSTFOLDER="ProgramFilesFolder"
