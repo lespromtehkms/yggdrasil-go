@@ -184,6 +184,13 @@ func (c *Core) ReadFrom(p []byte) (n int, from net.Addr, err error) {
 		if n == 0 {
 			continue
 		}
+		if len(c.config._allowedPublicKeys) > 0 {
+			var key [32]byte
+			copy(key[:], from.(iwt.Addr))
+			if _, ok := c.config._allowedPublicKeys[key]; !ok {
+				continue
+			}
+		}
 		switch bs[0] {
 		case typeSessionTraffic:
 			// This is what we want to handle here
