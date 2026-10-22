@@ -2,10 +2,9 @@
 
 case "$*" in
   *--bare*)
-    # Remove the "v" prefix
-    git describe --tags --match="v[0-9]*\.[0-9]*\.[0-9]*" | cut -c 2-
+    echo "0.5.12.1"
     ;;
   *)
-    git describe --tags --match="v[0-9]*\.[0-9]*\.[0-9]*"
+    echo "v0.5.12.1"
     ;;
 esac
