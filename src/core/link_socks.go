@@ -60,6 +60,24 @@ func (l *linkSOCKS) dial(_ context.Context, u *url.URL, info linkInfo, options l
 			return nil, fmt.Errorf("target peer address missing in proxy URI path")
 		}
 
+		// Если пир указан доменом (буквами), сначала пробуем узнать его IP на самом компе,
+		// чтобы прокси-серверу без DNS сразу шли готовые цифры IP:порт.
+		connectTarget := target
+		peerHost, peerPort, splitErr := net.SplitHostPort(target)
+		if splitErr == nil && net.ParseIP(peerHost) == nil {
+			if ips, lookupErr := net.LookupIP(peerHost); lookupErr == nil {
+				for _, resolvedIP := range ips {
+					if v4 := resolvedIP.To4(); v4 != nil {
+						connectTarget = net.JoinHostPort(v4.String(), peerPort)
+						break
+					}
+				}
+				if connectTarget == target && len(ips) > 0 {
+					connectTarget = net.JoinHostPort(ips[0].String(), peerPort)
+				}
+			}
+		}
+
 		var conn net.Conn
 		scheme := strings.ToLower(u.Scheme)
 		if scheme == "http" || scheme == "httptls" {
@@ -69,7 +87,7 @@ func (l *linkSOCKS) dial(_ context.Context, u *url.URL, info linkInfo, options l
 			}
 			_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
 			var reqBuilder strings.Builder
-			fmt.Fprintf(&reqBuilder, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n", target, target)
+			fmt.Fprintf(&reqBuilder, "CONNECT %s HTTP/1.1\r\nHost: %s\r\n", connectTarget, connectTarget)
 			if proxyAuth != nil {
 				auth := base64.StdEncoding.EncodeToString([]byte(proxyAuth.User + ":" + proxyAuth.Password))
 				fmt.Fprintf(&reqBuilder, "Proxy-Authorization: Basic %s\r\n", auth)
@@ -99,21 +117,19 @@ func (l *linkSOCKS) dial(_ context.Context, u *url.URL, info linkInfo, options l
 			if err != nil {
 				return nil, err
 			}
-			conn, err = p.Dial("tcp", target)
+			conn, err = p.Dial("tcp", connectTarget)
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		if scheme == "sockstls" || scheme == "httptls" {
-			tlsconfig.ServerName = hostname
-			if sni := options.tlsSNI; sni != "" {
-				tlsconfig.ServerName = sni
+			tlsconfig.ServerName = ""
+			if splitErr == nil && net.ParseIP(peerHost) == nil {
+				tlsconfig.ServerName = peerHost
 			}
-			if u.Query().Get("sni") == "" {
-				if peerHost, _, err := net.SplitHostPort(target); err == nil && net.ParseIP(peerHost) == nil {
-					tlsconfig.ServerName = peerHost
-				}
+			if sni := u.Query().Get("sni"); sni != "" && net.ParseIP(sni) == nil {
+				tlsconfig.ServerName = sni
 			}
 			tlsconfig.MinVersion = tls.VersionTLS12
 			tlsconfig.MaxVersion = tls.VersionTLS13
