@@ -37,7 +37,7 @@ EOF
 
 # Work out metadata for the package info
 PKGNAME=$(sh contrib/semver/name.sh)
-PKGVERSION=$(sh contrib/msi/msversion.sh --bare)
+PKGVERSION=$(sh contrib/semver/version.sh)
 PKGVERSIONMS=$(echo $PKGVERSION | tr - .)
 ([ "${PKGARCH}" == "x64" ] || [ "${PKGARCH}" == "arm64" ]) && \
   PKGGUID="77757838-1a23-40a5-a720-c3b43e0260cc" PKGINSTFOLDER="ProgramFiles64Folder" || \
