@@ -8,6 +8,8 @@ import (
 	"io"
 	"net"
 	"net/url"
+	"sync"
+	"time"
 
 	iwe "github.com/Arceliar/ironwood/encrypted"
 	iwn "github.com/Arceliar/ironwood/network"
@@ -27,14 +29,15 @@ type Core struct {
 	// guarantee that it will be covered by the mutex
 	phony.Inbox
 	*iwe.PacketConn
-	ctx    context.Context
-	cancel context.CancelFunc
-	secret ed25519.PrivateKey
-	public ed25519.PublicKey
-	links  links
-	proto  protoHandler
-	log    Logger
-	config struct {
+	ctx             context.Context
+	cancel          context.CancelFunc
+	secret          ed25519.PrivateKey
+	public          ed25519.PublicKey
+	links           links
+	proto           protoHandler
+	log             Logger
+	outboundAllowed sync.Map
+	config          struct {
 		tls *tls.Config // immutable after startup
 		//_peers             map[Peer]*linkInfo         // configurable after startup
 		_listeners         map[ListenAddress]struct{} // configurable after startup
@@ -181,6 +184,15 @@ func (c *Core) ReadFrom(p []byte) (n int, from net.Addr, err error) {
 		if n == 0 {
 			continue
 		}
+		if len(c.config._allowedPublicKeys) > 0 {
+			var key [32]byte
+			copy(key[:], from.(iwt.Addr))
+			if _, ok := c.config._allowedPublicKeys[key]; !ok {
+				if exp, ok := c.outboundAllowed.Load(key); !ok || time.Now().After(exp.(time.Time)) {
+					continue
+				}
+			}
+		}
 		switch bs[0] {
 		case typeSessionTraffic:
 			// This is what we want to handle here
@@ -201,6 +213,11 @@ func (c *Core) ReadFrom(p []byte) (n int, from net.Addr, err error) {
 }
 
 func (c *Core) WriteTo(p []byte, addr net.Addr) (n int, err error) {
+	if len(c.config._allowedPublicKeys) > 0 {
+		var key [32]byte
+		copy(key[:], addr.(iwt.Addr))
+		c.outboundAllowed.Store(key, time.Now().Add(5*time.Minute))
+	}
 	buf := allocBytes(0)
 	defer func() { freeBytes(buf) }()
 	buf = append(buf, typeSessionTraffic)
