@@ -603,7 +603,7 @@ func (l *links) dialerFor(u *url.URL) (linkProtocol, error) {
 		dialer = l.tcp
 	case "tls":
 		dialer = l.tls
-	case "socks", "sockstls":
+	case "socks", "sockstls", "http", "httptls":
 		dialer = l.socks
 	case "unix":
 		dialer = l.unix
